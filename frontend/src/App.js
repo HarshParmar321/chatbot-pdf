@@ -2,7 +2,8 @@ import { useState, useRef, useEffect } from "react";
 import axios from "axios";
 import ReactMarkdown from "react-markdown";
 
-const API_URL = process.env.REACT_APP_API_URL || "http://127.0.0.1:8000";
+const API_URL = "https://pdf-chatbot-backend-production-188b.up.railway.app";
+
 
 function App() {
   const [file, setFile] = useState(null);

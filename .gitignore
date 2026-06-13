@@ -27,3 +27,4 @@ npm-debug.log*
 dist/
 build/
 .next/
+frontend/.env.production

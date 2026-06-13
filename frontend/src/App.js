@@ -25,7 +25,7 @@ function App() {
     const formData = new FormData();
     formData.append("file", file);
     try {
-      const res = await axios.post(`${API_URL}/upload`, formData);
+      await axios.post(`${API_URL}/upload`, formData);
       setUploaded(true);
       setUploadedName(file.name);
       setMessages([{ role: "system", text: `✅ "${file.name}" uploaded successfully! Ask me anything about it.` }]);

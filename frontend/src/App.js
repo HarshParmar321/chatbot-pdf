@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import axios from "axios";
 import ReactMarkdown from "react-markdown";
+import { Analytics } from '@vercel/analytics/react';
 
 const API_URL = "https://pdf-chatbot-backend-production-188b.up.railway.app";
 
@@ -154,6 +155,7 @@ function App() {
           <p style={s.inputHint}>Press Enter or click ➤ to send</p>
         </div>
       </div>
+      <Analytics />
     </div>
   );
 }

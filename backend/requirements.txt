@@ -13,4 +13,3 @@ langchain-text-splitters==0.0.1
 langsmith==0.1.17
 sentence-transformers==2.2.2
 huggingface-hub==0.16.4
-httpx==0.23.3

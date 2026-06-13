@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import axios from "axios";
 import ReactMarkdown from "react-markdown";
 
+const API_URL = process.env.REACT_APP_API_URL || "http://127.0.0.1:8000";
 
 function App() {
   const [file, setFile] = useState(null);
@@ -23,7 +24,7 @@ function App() {
     const formData = new FormData();
     formData.append("file", file);
     try {
-      const res = await axios.post("http://127.0.0.1:8000/upload", formData);
+      const res = await axios.post(`${API_URL}/upload`, formData);
       setUploaded(true);
       setUploadedName(file.name);
       setMessages([{ role: "system", text: `✅ "${file.name}" uploaded successfully! Ask me anything about it.` }]);
@@ -41,7 +42,7 @@ function App() {
     setQuestion("");
     setLoading(true);
     try {
-      const res = await axios.post("http://127.0.0.1:8000/ask", { question });
+      const res = await axios.post(`${API_URL}/ask`, { question });
       setMessages((prev) => [...prev, { role: "bot", text: res.data.answer }]);
     } catch (err) {
       alert("Something went wrong!");

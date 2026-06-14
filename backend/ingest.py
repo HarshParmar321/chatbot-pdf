@@ -13,17 +13,15 @@ model = SentenceTransformer("all-MiniLM-L6-v2")
 
 
 def ingest_pdf(file_bytes: bytes, filename: str):
-
-    # Clear previous PDF data
+    # Clear previous PDF data FIRST so old chunks can't be queried
+    # while the new PDF is still processing.
     supabase.table("documents").delete().neq("id", 0).execute()
 
-    # Save PDF temporarily
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
         tmp.write(file_bytes)
         tmp_path = tmp.name
 
     try:
-        # Load and chunk the PDF
         loader = PyPDFLoader(tmp_path)
         documents = loader.load()
 
@@ -38,7 +36,7 @@ def ingest_pdf(file_bytes: bytes, filename: str):
 
         texts = [chunk.page_content for chunk in chunks]
 
-        # Batch-embed all chunks in one call (much faster than per-chunk encode)
+        # Batch-embed all chunks in one call
         embeddings = model.encode(
             texts,
             batch_size=32,
@@ -46,7 +44,6 @@ def ingest_pdf(file_bytes: bytes, filename: str):
             convert_to_numpy=True,
         )
 
-        # Build rows for a single bulk insert
         rows = [
             {
                 "content": text,
@@ -56,8 +53,6 @@ def ingest_pdf(file_bytes: bytes, filename: str):
             for text, embedding in zip(texts, embeddings)
         ]
 
-        # Bulk insert in batches (Supabase/PostgREST has payload size limits,
-        # so chunk large documents into groups of 100 rows per request)
         BATCH_SIZE = 100
         for i in range(0, len(rows), BATCH_SIZE):
             batch = rows[i:i + BATCH_SIZE]

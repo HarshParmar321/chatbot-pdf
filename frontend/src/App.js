@@ -38,27 +38,41 @@ function App() {
     }
   };
 
-  const handleUpload = async () => {
+const handleUpload = async () => {
     if (!file) return;
     setUploading(true);
     const formData = new FormData();
     formData.append("file", file);
     try {
       await axios.post(`${API_URL}/upload`, formData);
+
+      // Upload accepted instantly; poll /status until processing finishes
+      let ready = false;
+      for (let i = 0; i < 30; i++) {
+        await new Promise((r) => setTimeout(r, 2000));
+        const res = await axios.get(`${API_URL}/status`);
+        if (res.data.ready) {
+          ready = true;
+          break;
+        }
+      }
+
       setUploaded(true);
       setUploadedName(file.name);
       setSidebarOpen(false);
       setMessages([
         {
           role: "system",
-          text: `🎉 "${file.name}" is loaded! Ask me anything about it.`,
+          text: ready
+            ? `🎉 "${file.name}" is loaded! Ask me anything about it.`
+            : `📄 "${file.name}" is still processing — give it a few more seconds before asking.`,
         },
       ]);
     } catch (err) {
       alert("Upload failed. Make sure the backend is running!");
     }
     setUploading(false);
-  };
+};
 
   const handleAsk = async () => {
     const trimmed = question.trim();

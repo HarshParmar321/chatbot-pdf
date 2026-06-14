@@ -4,6 +4,7 @@ from supabase import create_client
 from dotenv import load_dotenv
 import os
 import re
+import time
 
 load_dotenv()
 
@@ -19,19 +20,20 @@ DEVANAGARI_PATTERN = re.compile(r"[\u0900-\u097F]")
 
 
 def answer_question(question: str):
-    # Embed the question
-    question_embedding = model.encode(question).tolist()
+    t0 = time.time()
 
-    # Single similarity search - no extra full-table fetch
+    question_embedding = model.encode(question).tolist()
+    t1 = time.time()
+
     result = supabase.rpc("match_documents", {
         "query_embedding": question_embedding,
         "match_count": 12
     }).execute()
+    t2 = time.time()
 
     chunks = [doc["content"] for doc in result.data]
     context = "\n\n".join(chunks)
 
-    # Detect language strictly by script, not by guessing
     is_hindi = bool(DEVANAGARI_PATTERN.search(question))
     language_instruction = (
         "Respond in Hindi (Devanagari script), matching the user's language."
@@ -71,5 +73,10 @@ STYLE RULES:
 
 ANSWER:"""
 
+    t3 = time.time()
     response = llm.invoke(prompt)
+    t4 = time.time()
+
+    print(f"[TIMING] embed={t1-t0:.2f}s supabase={t2-t1:.2f}s groq={t4-t3:.2f}s total={t4-t0:.2f}s")
+
     return response.content

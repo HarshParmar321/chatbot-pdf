@@ -11,34 +11,58 @@ load_dotenv()
 supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
 model = SentenceTransformer("all-MiniLM-L6-v2")
 
+
 def ingest_pdf(file_bytes: bytes, filename: str):
 
-     # Clear previous PDF data
+    # Clear previous PDF data
     supabase.table("documents").delete().neq("id", 0).execute()
-    
+
     # Save PDF temporarily
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
         tmp.write(file_bytes)
         tmp_path = tmp.name
 
-    # Load and chunk the PDF
-    loader = PyPDFLoader(tmp_path)
-    documents = loader.load()
+    try:
+        # Load and chunk the PDF
+        loader = PyPDFLoader(tmp_path)
+        documents = loader.load()
 
-    splitter = RecursiveCharacterTextSplitter(
-        chunk_size=500,
-        chunk_overlap=50
-    )
-    chunks = splitter.split_documents(documents)
+        splitter = RecursiveCharacterTextSplitter(
+            chunk_size=500,
+            chunk_overlap=50
+        )
+        chunks = splitter.split_documents(documents)
 
-    # Embed each chunk and store in Supabase
-    for chunk in chunks:
-        embedding = model.encode(chunk.page_content).tolist()
-        supabase.table("documents").insert({
-            "content": chunk.page_content,
-            "embedding": embedding,
-            "metadata": {"source": filename}
-        }).execute()
+        if not chunks:
+            return 0
 
-    os.unlink(tmp_path)
-    return len(chunks)
+        texts = [chunk.page_content for chunk in chunks]
+
+        # Batch-embed all chunks in one call (much faster than per-chunk encode)
+        embeddings = model.encode(
+            texts,
+            batch_size=32,
+            show_progress_bar=False,
+            convert_to_numpy=True,
+        )
+
+        # Build rows for a single bulk insert
+        rows = [
+            {
+                "content": text,
+                "embedding": embedding.tolist(),
+                "metadata": {"source": filename},
+            }
+            for text, embedding in zip(texts, embeddings)
+        ]
+
+        # Bulk insert in batches (Supabase/PostgREST has payload size limits,
+        # so chunk large documents into groups of 100 rows per request)
+        BATCH_SIZE = 100
+        for i in range(0, len(rows), BATCH_SIZE):
+            batch = rows[i:i + BATCH_SIZE]
+            supabase.table("documents").insert(batch).execute()
+
+        return len(chunks)
+    finally:
+        os.unlink(tmp_path)

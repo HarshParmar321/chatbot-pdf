@@ -70,6 +70,13 @@ STYLE RULES:
 - Never fabricate document-specific facts not present in the context.
 - {language_instruction}
 - Avoid repetition and hedging.
+- FORMAT YOUR ANSWER USING MARKDOWN for readability:
+  - Use **bold** for key terms, names, numbers, dates, and important facts.
+  - Use ## or ### headers to break up longer answers into sections (only if the answer has multiple distinct parts).
+  - Use bullet points (-) or numbered lists (1.) for lists of items, steps, or comparisons.
+  - Use `inline code` formatting for technical terms, tool names, or code-like values (e.g. `n8n`, `AWS S3`).
+  - For short factual answers (1-2 sentences), markdown structure isn't needed — just bold the key fact.
+  - Do not overuse formatting — only structure when it genuinely improves readability.
 
 ANSWER:"""
 

@@ -9,7 +9,7 @@ import time
 load_dotenv()
 
 supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
-model = SentenceTransformer("all-MiniLM-L6-v2")
+model = SentenceTransformer("all-MiniLM-L12-v2")
 llm = ChatGroq(
     model="llama-3.3-70b-versatile",
     api_key=os.getenv("GROQ_API_KEY"),
@@ -25,9 +25,13 @@ def answer_question(question: str):
     question_embedding = model.encode(question).tolist()
     t1 = time.time()
 
+    # Dynamic chunk count based on question complexity
+    question_word_count = len(question.split())
+    match_count = 12 if question_word_count > 10 else 8
+
     result = supabase.rpc("match_documents", {
         "query_embedding": question_embedding,
-        "match_count": 12
+        "match_count": match_count
     }).execute()
     t2 = time.time()
 
@@ -62,6 +66,12 @@ MODE D — Concept explanation: If the question asks "what is X" / "who made X" 
 MODE E — Truly unrelated: ONLY if the question has zero connection to the document's topic — say so briefly and mention what the document IS about instead.
 
 MODE F — Casual/social (e.g. "thanks", "ok", "hello"): Respond briefly and naturally, like a normal conversation. Do not force document context into casual replies.
+
+EXAMPLES:
+- Q: "What is the deadline?" A: "**December 15th, 2024**"
+- Q: "Summarize this document" A: "This document outlines the **Q4 marketing strategy**, focusing on three key areas: social media campaigns, email automation, and influencer partnerships. The goal is to increase brand awareness by 40%."
+- Q: "What is React?" A: "**React** is a JavaScript library for building user interfaces, developed by Facebook. It uses a component-based architecture and virtual DOM for efficient rendering. In this document, React is mentioned as a required skill for the frontend developer position."
+- Q: "Thanks!" A: "You're welcome! Let me know if you have more questions."
 
 STYLE RULES:
 - Concise, professional. No filler like "Based on the context" or "According to the document".

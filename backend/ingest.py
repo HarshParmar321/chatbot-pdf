@@ -9,7 +9,7 @@ import tempfile
 load_dotenv()
 
 supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
-model = SentenceTransformer("all-MiniLM-L6-v2")
+model = SentenceTransformer("all-MiniLM-L12-v2")
 
 
 def ingest_pdf(file_bytes: bytes, filename: str):
@@ -26,8 +26,8 @@ def ingest_pdf(file_bytes: bytes, filename: str):
         documents = loader.load()
 
         splitter = RecursiveCharacterTextSplitter(
-            chunk_size=500,
-            chunk_overlap=50
+            chunk_size=1000,
+            chunk_overlap=100
         )
         chunks = splitter.split_documents(documents)
 
@@ -39,8 +39,8 @@ def ingest_pdf(file_bytes: bytes, filename: str):
         # Batch-embed all chunks in one call
         embeddings = model.encode(
             texts,
-            batch_size=32,
-            show_progress_bar=False,
+            batch_size=128,
+            show_progress_bar=True,
             convert_to_numpy=True,
         )
 
@@ -53,7 +53,7 @@ def ingest_pdf(file_bytes: bytes, filename: str):
             for text, embedding in zip(texts, embeddings)
         ]
 
-        BATCH_SIZE = 100
+        BATCH_SIZE = 500
         for i in range(0, len(rows), BATCH_SIZE):
             batch = rows[i:i + BATCH_SIZE]
             supabase.table("documents").insert(batch).execute()

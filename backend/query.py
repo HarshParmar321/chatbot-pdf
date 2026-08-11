@@ -1,7 +1,7 @@
 from langchain_groq import ChatGroq
-from sentence_transformers import SentenceTransformer
 from supabase import create_client
 from dotenv import load_dotenv
+from embeddings import encode_query
 import os
 import re
 import time
@@ -9,7 +9,6 @@ import time
 load_dotenv()
 
 supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
-model = SentenceTransformer("all-MiniLM-L6-v2")
 llm = ChatGroq(
     model="llama-3.3-70b-versatile",
     api_key=os.getenv("GROQ_API_KEY"),
@@ -22,7 +21,7 @@ DEVANAGARI_PATTERN = re.compile(r"[\u0900-\u097F]")
 def answer_question(question: str):
     t0 = time.time()
 
-    question_embedding = model.encode(question).tolist()
+    question_embedding = encode_query(question)
     t1 = time.time()
 
     # Dynamic chunk count based on question complexity

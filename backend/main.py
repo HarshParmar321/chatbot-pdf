@@ -3,15 +3,27 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
+from contextlib import asynccontextmanager
+import time
 
 load_dotenv()
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Preload the embedding model once at startup so uploads don't hang
+    # on a cold model load inside the background task.
+    from embeddings import get_embedding_model
+    get_embedding_model()
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "https://chatbot-pdf-mu.vercel.app"
+        "https://chatbot-pdf-mu.vercel.app",
     ],
     allow_credentials=False,
     allow_methods=["*"],
@@ -29,7 +41,10 @@ processing_status = {
     "processing": False,
     "filename": None,
     "error": None,
+    "started_at": None,
 }
+
+PROCESSING_TIMEOUT_SECONDS = 180
 
 
 @app.post("/upload")
@@ -47,6 +62,7 @@ async def upload_pdf(background_tasks: BackgroundTasks, file: UploadFile = File(
         "processing": True,
         "filename": filename,
         "error": None,
+        "started_at": time.time(),
     })
 
     background_tasks.add_task(process_pdf_bg, contents, filename)
@@ -66,6 +82,7 @@ def process_pdf_bg(file_bytes: bytes, filename: str):
             "ready": True,
             "processing": False,
             "error": None,
+            "started_at": None,
         })
         print(f"[UPLOAD] '{filename}' processed: {num_chunks} chunks ready")
     except Exception as e:
@@ -73,12 +90,28 @@ def process_pdf_bg(file_bytes: bytes, filename: str):
             "ready": False,
             "processing": False,
             "error": str(e),
+            "started_at": None,
         })
         print(f"[UPLOAD] '{filename}' FAILED: {e}")
 
 
 @app.get("/status")
 async def status():
+    if (
+        processing_status["processing"]
+        and processing_status["started_at"]
+        and time.time() - processing_status["started_at"] > PROCESSING_TIMEOUT_SECONDS
+    ):
+        processing_status.update({
+            "ready": False,
+            "processing": False,
+            "error": (
+                "PDF processing timed out on the server. "
+                "The embedding model may be out of memory on the free hosting tier — "
+                "try again after the server restarts, or redeploy with more RAM."
+            ),
+            "started_at": None,
+        })
     return processing_status
 
 

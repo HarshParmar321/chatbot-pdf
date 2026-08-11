@@ -5,7 +5,7 @@ services:
     plan: free
     rootDir: backend
 
-    buildCommand: pip install -r requirements.txt
+    buildCommand: pip install -r requirements.txt && python -c "from embeddings import get_embedding_model; get_embedding_model()"
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
 
     envVars:

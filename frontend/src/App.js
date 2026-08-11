@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import axios from "axios";
 import ReactMarkdown from "react-markdown";
 
-const API_URL = "https://pdf-chatbot-backend-production-188b.up.railway.app";
+const API_URL = "http://localhost:8000";
 
 function Mascot({ size = 58, animated = true, showSparks = false, style = {} }) {
   return (
@@ -79,23 +79,35 @@ function App() {
     fileInputRef.current?.click();
   };
 
-const handleUpload = async () => {
+  const handleUpload = async () => {
     if (!file) return;
     setUploading(true);
     const formData = new FormData();
     formData.append("file", file);
+
     try {
       await axios.post(`${API_URL}/upload`, formData);
 
-      // Upload accepted instantly; poll /status until processing finishes
+      // Upload is accepted immediately; poll until PDF processing finishes.
       let ready = false;
-      for (let i = 0; i < 30; i++) {
+      for (let i = 0; i < 60; i++) {
         await new Promise((r) => setTimeout(r, 2000));
         const res = await axios.get(`${API_URL}/status`);
+
+        if (res.data.error) {
+          throw new Error(res.data.error);
+        }
+
         if (res.data.ready) {
           ready = true;
           break;
         }
+      }
+
+      if (!ready) {
+        throw new Error(
+          "The PDF is taking too long to process. Check the backend terminal for details."
+        );
       }
 
       setUploaded(true);
@@ -104,16 +116,20 @@ const handleUpload = async () => {
       setMessages([
         {
           role: "system",
-          text: ready
-            ? `🎉 "${file.name}" is loaded! Ask me anything about it.`
-            : `📄 "${file.name}" is still processing — give it a few more seconds before asking.`,
+          text: `🎉 "${file.name}" is loaded! Ask me anything about it.`,
         },
       ]);
     } catch (err) {
-      alert("Upload failed. Make sure the backend is running!");
+      const detail =
+        err.response?.data?.detail ||
+        err.response?.data?.error ||
+        err.message ||
+        "Unknown upload error";
+      alert(`Upload failed: ${detail}`);
+    } finally {
+      setUploading(false);
     }
-    setUploading(false);
-};
+  };
 
   const handleAsk = async () => {
     const trimmed = question.trim();

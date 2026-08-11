@@ -21,24 +21,36 @@ class QuestionRequest(BaseModel):
     question: str
 
 
-# Simple in-memory flag: is a document ready to be queried?
-processing_status = {"ready": False, "filename": None}
+# In-memory processing state for the single active document.
+processing_status = {
+    "ready": False,
+    "processing": False,
+    "filename": None,
+    "error": None,
+}
 
 
 @app.post("/upload")
-async def upload_pdf(file: UploadFile = File(...), background_tasks: BackgroundTasks = None):
-    if not file.filename.lower().endswith(".pdf"):
+async def upload_pdf(background_tasks: BackgroundTasks, file: UploadFile = File(...)):
+    filename = file.filename or ""
+    if not filename.lower().endswith(".pdf"):
         return JSONResponse({"error": "Only PDF files allowed"}, status_code=400)
 
     contents = await file.read()
+    if not contents:
+        return JSONResponse({"error": "The uploaded PDF is empty"}, status_code=400)
 
-    processing_status["ready"] = False
-    processing_status["filename"] = file.filename
+    processing_status.update({
+        "ready": False,
+        "processing": True,
+        "filename": filename,
+        "error": None,
+    })
 
-    background_tasks.add_task(process_pdf_bg, contents, file.filename)
+    background_tasks.add_task(process_pdf_bg, contents, filename)
 
     return JSONResponse({
-        "message": f'"{file.filename}" upload received! Processing in the background — give it ~20-40 seconds before asking questions.'
+        "message": f'"{filename}" upload received and is being processed.'
     }, status_code=202)
 
 
@@ -46,10 +58,20 @@ def process_pdf_bg(file_bytes: bytes, filename: str):
     try:
         from ingest import ingest_pdf
         num_chunks = ingest_pdf(file_bytes, filename)
-        processing_status["ready"] = True
+        if num_chunks == 0:
+            raise ValueError("No readable text was found in this PDF")
+        processing_status.update({
+            "ready": True,
+            "processing": False,
+            "error": None,
+        })
         print(f"[UPLOAD] '{filename}' processed: {num_chunks} chunks ready")
     except Exception as e:
-        processing_status["ready"] = False
+        processing_status.update({
+            "ready": False,
+            "processing": False,
+            "error": str(e),
+        })
         print(f"[UPLOAD] '{filename}' FAILED: {e}")
 
 

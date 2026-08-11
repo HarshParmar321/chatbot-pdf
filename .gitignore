@@ -3,11 +3,14 @@
 .env.local
 .env.*.local
 
-# Dependencies
-node_modules/
+# Python
 venv/
+.venv/
 __pycache__/
 *.pyc
+
+# Node dependencies
+node_modules/
 
 # IDE
 .vscode/
@@ -27,4 +30,6 @@ npm-debug.log*
 dist/
 build/
 .next/
+
+# Frontend environment
 frontend/.env.production

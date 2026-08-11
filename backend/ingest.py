@@ -9,7 +9,7 @@ import tempfile
 load_dotenv()
 
 supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
-model = SentenceTransformer("all-MiniLM-L12-v2")
+model = SentenceTransformer("all-MiniLM-L6-v2")
 
 
 def ingest_pdf(file_bytes: bytes, filename: str):

@@ -10,7 +10,7 @@ load_dotenv()
 
 supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
 llm = ChatGroq(
-    model="llama-3.3-70b-versatile",
+    model="openai/gpt-oss-120b",
     api_key=os.getenv("GROQ_API_KEY"),
     temperature=0.2,
 )
@@ -24,9 +24,9 @@ def answer_question(question: str):
     question_embedding = encode_query(question)
     t1 = time.time()
 
-    # Dynamic chunk count based on question complexity
+    # Top 5-6 most relevant chunks (optimal context without hitting Groq TPM limits)
     question_word_count = len(question.split())
-    match_count = 12 if question_word_count > 10 else 8
+    match_count = 6 if question_word_count > 10 else 5
 
     result = supabase.rpc("match_documents", {
         "query_embedding": question_embedding,
@@ -34,8 +34,9 @@ def answer_question(question: str):
     }).execute()
     t2 = time.time()
 
-    chunks = [doc["content"] for doc in result.data]
-    context = "\n\n".join(chunks)
+    chunks = [doc["content"] for doc in result.data] if result.data else []
+    # Safe character limit (~6,500 chars ≈ 1,600 tokens) to prevent rate limit overflow
+    context = "\n\n".join(chunks)[:7000]
 
     is_hindi = bool(DEVANAGARI_PATTERN.search(question))
     language_instruction = (

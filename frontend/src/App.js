@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import axios from "axios";
 import ReactMarkdown from "react-markdown";
 
-const API_URL = process.env.REACT_APP_API_URL;
+const API_URL = process.env.REACT_APP_API_URL || "http://localhost:8000";
 
 function Mascot({ size = 58, animated = true, showSparks = false, style = {} }) {
   return (
@@ -35,6 +35,8 @@ function App() {
   const [question, setQuestion] = useState("");
   const [messages, setMessages] = useState([]);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadDetail, setUploadDetail] = useState("");
   const [uploaded, setUploaded] = useState(false);
   const [uploadedName, setUploadedName] = useState("");
   const [loading, setLoading] = useState(false);
@@ -82,20 +84,29 @@ function App() {
   const handleUpload = async () => {
     if (!file) return;
     setUploading(true);
+    setUploadProgress(0);
+    setUploadDetail("Uploading PDF to server...");
     const formData = new FormData();
     formData.append("file", file);
 
     try {
       await axios.post(`${API_URL}/upload`, formData);
 
-      // Upload is accepted immediately; poll until PDF processing finishes.
+      // Upload is accepted immediately; poll until PDF processing finishes (up to 10 mins).
       let ready = false;
-      for (let i = 0; i < 60; i++) {
+      for (let i = 0; i < 300; i++) {
         await new Promise((r) => setTimeout(r, 2000));
         const res = await axios.get(`${API_URL}/status`);
 
         if (res.data.error) {
           throw new Error(res.data.error);
+        }
+
+        if (typeof res.data.progress === "number") {
+          setUploadProgress(res.data.progress);
+        }
+        if (res.data.detail) {
+          setUploadDetail(res.data.detail);
         }
 
         if (res.data.ready) {
@@ -162,6 +173,8 @@ function App() {
     setFile(null);
     setUploaded(false);
     setUploadedName("");
+    setUploadProgress(0);
+    setUploadDetail("");
     setMessages([]);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
@@ -209,6 +222,24 @@ function App() {
             )}
           </div>
 
+          {uploading && (
+            <div className="progress-container" style={s.progressContainer}>
+              <div style={s.progressHeader}>
+                <span style={s.progressLabel}>{uploadDetail || "Processing PDF..."}</span>
+                <span style={s.progressPercent}>{uploadProgress}%</span>
+              </div>
+              <div style={s.progressBarTrack}>
+                <div
+                  className="progress-bar-fill"
+                  style={{
+                    ...s.progressBarFill,
+                    width: `${Math.max(uploadProgress, 6)}%`,
+                  }}
+                />
+              </div>
+            </div>
+          )}
+
           <button
             className="upload-btn"
             onClick={handleUpload}
@@ -217,14 +248,14 @@ function App() {
               !file || uploading
                 ? {
                     ...s.uploadBtn,
-                    opacity: 0.5,
-                    cursor: "default",
+                    opacity: uploading ? 0.9 : 0.5,
+                    cursor: uploading ? "wait" : "default",
                     boxShadow: "0 5px 0 #5A3FC4",
                   }
                 : s.uploadBtn
             }
           >
-            {uploading ? "Loading… 🌀" : "Let's go! 🚀"}
+            {uploading ? `Processing… ${uploadProgress}% 🌀` : "Let's go! 🚀"}
           </button>
         </>
       ) : (
@@ -314,6 +345,26 @@ function App() {
 
         .mascot { animation: bob 3.5s ease-in-out infinite; }
         .mascot-spark { animation: sparkle 2.2s ease-in-out infinite; }
+
+        @keyframes progressStripes {
+          0% { background-position: 0 0; }
+          100% { background-position: 30px 0; }
+        }
+        .progress-bar-fill {
+          transition: width 0.35s ease-out;
+          background-image: linear-gradient(
+            45deg,
+            rgba(255, 255, 255, 0.25) 25%,
+            transparent 25%,
+            transparent 50%,
+            rgba(255, 255, 255, 0.25) 50%,
+            rgba(255, 255, 255, 0.25) 75%,
+            transparent 75%,
+            transparent
+          );
+          background-size: 20px 20px;
+          animation: progressStripes 1s linear infinite;
+        }
 
         .drop-zone-label {
           transition: transform 0.18s ease, border-color 0.18s ease, background-color 0.18s ease;
@@ -1009,6 +1060,55 @@ const s = {
     fontSize: "11.5px",
     color: "#A99FC9",
     fontWeight: 700,
+  },
+
+  progressContainer: {
+    backgroundColor: "#FFFFFF",
+    border: `2.5px solid ${INK}`,
+    borderRadius: "16px",
+    padding: "12px 14px",
+    display: "flex",
+    flexDirection: "column",
+    gap: "8px",
+    boxShadow: `0 3px 0 ${INK}`,
+    marginTop: "2px",
+    marginBottom: "2px",
+  },
+  progressHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    fontSize: "12px",
+    fontWeight: 800,
+    color: INK,
+  },
+  progressLabel: {
+    fontFamily: "'Nunito', sans-serif",
+    color: PURPLE_DARK,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+    maxWidth: "78%",
+  },
+  progressPercent: {
+    fontFamily: "'Baloo 2', sans-serif",
+    fontSize: "14px",
+    color: PURPLE,
+    fontWeight: 800,
+  },
+  progressBarTrack: {
+    width: "100%",
+    height: "12px",
+    backgroundColor: "#ECE6FF",
+    borderRadius: "999px",
+    border: `2px solid ${INK}`,
+    overflow: "hidden",
+    position: "relative",
+  },
+  progressBarFill: {
+    height: "100%",
+    borderRadius: "999px",
+    background: `linear-gradient(90deg, ${PURPLE} 0%, ${PINK} 50%, ${YELLOW} 100%)`,
   },
 
   uploadBtn: {

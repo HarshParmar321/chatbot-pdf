@@ -22,9 +22,7 @@ app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://chatbot-pdf-mu.vercel.app",
-    ],
+    allow_origins=["*"],
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -42,9 +40,12 @@ processing_status = {
     "filename": None,
     "error": None,
     "started_at": None,
+    "stage": None,
+    "progress": 0,
+    "detail": None,
 }
 
-PROCESSING_TIMEOUT_SECONDS = 180
+PROCESSING_TIMEOUT_SECONDS = 600
 
 
 @app.post("/upload")
@@ -63,6 +64,9 @@ async def upload_pdf(background_tasks: BackgroundTasks, file: UploadFile = File(
         "filename": filename,
         "error": None,
         "started_at": time.time(),
+        "stage": "starting",
+        "progress": 0,
+        "detail": "Upload received, starting processing...",
     })
 
     background_tasks.add_task(process_pdf_bg, contents, filename)
@@ -73,9 +77,16 @@ async def upload_pdf(background_tasks: BackgroundTasks, file: UploadFile = File(
 
 
 def process_pdf_bg(file_bytes: bytes, filename: str):
+    def on_progress(stage: str, percent: int, detail: str):
+        processing_status.update({
+            "stage": stage,
+            "progress": percent,
+            "detail": detail,
+        })
+
     try:
         from ingest import ingest_pdf
-        num_chunks = ingest_pdf(file_bytes, filename)
+        num_chunks = ingest_pdf(file_bytes, filename, progress_callback=on_progress)
         if num_chunks == 0:
             raise ValueError("No readable text was found in this PDF")
         processing_status.update({
@@ -83,6 +94,9 @@ def process_pdf_bg(file_bytes: bytes, filename: str):
             "processing": False,
             "error": None,
             "started_at": None,
+            "stage": "completed",
+            "progress": 100,
+            "detail": f"Ready! {num_chunks} chunks indexed.",
         })
         print(f"[UPLOAD] '{filename}' processed: {num_chunks} chunks ready")
     except Exception as e:
@@ -91,6 +105,8 @@ def process_pdf_bg(file_bytes: bytes, filename: str):
             "processing": False,
             "error": str(e),
             "started_at": None,
+            "stage": "error",
+            "detail": f"Failed: {str(e)}",
         })
         print(f"[UPLOAD] '{filename}' FAILED: {e}")
 
@@ -111,6 +127,7 @@ async def status():
                 "try again after the server restarts, or redeploy with more RAM."
             ),
             "started_at": None,
+            "stage": "timeout",
         })
     return processing_status
 

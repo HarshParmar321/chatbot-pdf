@@ -9,3 +9,6 @@ fastembed
 langchain-text-splitters
 langchain-groq
 pypdf
+pymupdf
+rapidocr-onnxruntime
+pillow
